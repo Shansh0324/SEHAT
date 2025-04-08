@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Kiosk</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const languages = {
+            en: { welcome: "Welcome", login: "Login", healthCheck: "Health Check", schemes: "Government Schemes", doctor: "Doctor Connect", report: "Report", good: "Good", bad: "Bad", help: "Calling support", videoCall: "Connecting to doctor via video call", callEnded: "Video call ended" },
+            hi: { welcome: "स्वागत है", login: "लॉगिन", healthCheck: "स्वास्थ्य जांच", schemes: "सरकारी योजनाएं", doctor: "डॉक्टर से संपर्क", report: "रिपोर्ट", good: "अच्छा", bad: "बुरा", help: "सहायता के लिए कॉल करें", videoCall: "डॉक्टर से वीडियो कॉल के माध्यम से जुड़ रहा है", callEnded: "वीडियो कॉल समाप्त" },
+            ta: { welcome: "வரவேற்பு", login: "உள்நுழை", healthCheck: "ஆரோக்கிய பரிசோதனை", schemes: "அரசு திட்டங்கள்", doctor: "மருத்துவர் இணைப்பு", report: "அறிக்கை", good: "நல்லது", bad: "கெட்டது", help: "உதவிக்கு அழைக்கவும்", videoCall: "மருத்துவருடன் வீடியோ அழைப்பு மூலம் இணைக்கிறது", callEnded: "வீடியோ அழைப்பு முடிந்தது" }
+        };
+
+        const HealthKiosk = () => {
+            const [lang, setLang] = React.useState('en');
+            const [user, setUser] = React.useState(null);
+            const [healthData, setHealthData] = React.useState({});
+            const [riskLevel, setRiskLevel] = React.useState(null);
+            const [voiceError, setVoiceError] = React.useState(null);
+            const [callActive, setCallActive] = React.useState(false);
+            const localVideoRef = React.useRef(null);
+            const remoteVideoRef = React.useRef(null);
+            const localStreamRef = React.useRef(null); // Store stream for cleanup
+
+            const speak = (text) => {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = lang === 'en' ? 'en-US' : lang === 'hi' ? 'hi-IN' : 'ta-IN';
+                    utterance.volume = 1;
+                    utterance.rate = 1;
+                    utterance.pitch = 1;
+                    utterance.onend = () => console.log('Speech finished');
+                    utterance.onerror = (e) => setVoiceError(`Voice error: ${e.error}`);
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    setVoiceError('Text-to-speech not supported in this browser');
+                }
+            };
+
+            React.useEffect(() => {
+                if (user) speak(languages[lang].welcome);
+                // Cleanup on unmount
+                return () => {
+                    if (localStreamRef.current) {
+                        localStreamRef.current.getTracks().forEach(track => track.stop());
+                    }
+                };
+            }, [user, lang]);
+
+            const HealthIcon = ({ name }) => (
+                <span className="text-4xl mr-2">{
+                    name === "bp" ? "🩺" : 
+                    name === "sugar" ? "💉" : 
+                    name === "weight" ? "⚖️" : 
+                    name === "camera" ? "📸" : "🏥"
+                }</span>
+            );
+
+            const startVideoCall = async () => {
+                try {
+                    setCallActive(true);
+                    speak(languages[lang].videoCall);
+
+                    // Get user media
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    localStreamRef.current = stream; // Store stream for cleanup
+                    if (localVideoRef.current) {
+                        localVideoRef.current.srcObject = stream;
+                    }
+
+                    // Simulate doctor's stream (placeholder for real WebRTC connection)
+                    const remoteStream = new MediaStream();
+                    if (remoteVideoRef.current) {
+                        remoteVideoRef.current.srcObject = remoteStream;
+                    }
+
+                    console.log("Video call started. In a real app, connect to doctor's peer here.");
+                } catch (error) {
+                    setVoiceError(`Video call error: ${error.message}`);
+                    setCallActive(false);
+                    if (localStreamRef.current) {
+                        localStreamRef.current.getTracks().forEach(track => track.stop());
+                    }
+                }
+            };
+
+            const endVideoCall = () => {
+                if (localStreamRef.current) {
+                    localStreamRef.current.getTracks().forEach(track => track.stop());
+                    localStreamRef.current = null;
+                }
+                if (localVideoRef.current) {
+                    localVideoRef.current.srcObject = null;
+                }
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = null;
+                }
+                setCallActive(false);
+                speak(languages[lang].callEnded);
+            };
+
+            const LoginScreen = () => (
+                <div className="space-y-4">
+                    <h2 className="text-2xl flex items-center"><span className="mr-2">👋</span>{languages[lang].welcome}</h2>
+                    <div className="flex gap-2">
+                        {Object.keys(languages).map(l => (
+                            <button key={l} onClick={() => {setLang(l); speak(languages[l].welcome)}} 
+                                className={`px-3 py-1 rounded ${lang === l ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}>
+                                {l.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="space-y-2">
+                        <button onClick={() => setUser('aadhaar')} className="w-full p-2 bg-green-500 text-white rounded flex items-center justify-center">
+                            <span className="mr-2">🆔</span>Aadhaar Login
+                        </button>
+                        <button onClick={() => setUser('mobile')} className="w-full p-2 bg-green-500 text-white rounded flex items-center justify-center">
+                            <span className="mr-2">📱</span>Mobile OTP
+                        </button>
+                        <button onClick={() => setUser('chw')} className="w-full p-2 bg-yellow-500 text-white rounded flex items-center justify-center">
+                            <span className="mr-2">👩‍⚕️</span>CHW Override
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const HealthCheck = () => (
+                <div className="space-y-4">
+                    <h2 className="text-2xl flex items-center"><HealthIcon />{languages[lang].healthCheck}</h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        {['bp', 'sugar', 'weight', 'camera'].map(item => (
+                            <button key={item} onClick={() => {
+                                setHealthData({...healthData, [item]: true});
+                                speak(`Recording ${item}`);
+                            }} className="p-4 bg-blue-100 rounded flex items-center justify-center">
+                                <HealthIcon name={item} />
+                                {item.charAt(0).toUpperCase() + item.slice(1)}
+                            </button>
+                        ))}
+                    </div>
+                    {Object.keys(healthData).length > 0 && (
+                        <div className="mt-4">
+                            <p>Assessment: <span className={`inline-block w-4 h-4 rounded-full ${riskLevel || 'bg-gray-300'}`}></span></p>
+                            <button onClick={() => {
+                                const risk = Math.random() > 0.7 ? 'bg-red-500' : Math.random() > 0.4 ? 'bg-yellow-500' : 'bg-green-500';
+                                setRiskLevel(risk);
+                                speak(`Health status: ${risk.includes('red') ? 'High risk' : risk.includes('yellow') ? 'Moderate' : 'Good'}`);
+                            }} className="mt-2 p-2 bg-purple-500 text-white rounded">
+                                Analyze
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+
+            const Schemes = () => (
+                <div className="space-y-4">
+                    <h2 className="text-2xl flex items-center"><span className="mr-2">🏛️</span>{languages[lang].schemes}</h2>
+                    <div className="space-y-2">
+                        {['Health Insurance', 'Free Checkup', 'Medicine Subsidy'].map(scheme => (
+                            <button key={scheme} onClick={() => speak(`Applying for ${scheme}`)} 
+                                className="w-full p-2 bg-indigo-500 text-white rounded flex items-center justify-between">
+                                {scheme} <span>✅</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            const DoctorConnect = () => (
+                <div className="space-y-4">
+                    <h2 className="text-2xl flex items-center"><span className="mr-2">👨‍⚕️</span>{languages[lang].doctor}</h2>
+                    <div className="flex gap-4">
+                        <button onClick={startVideoCall} disabled={callActive} 
+                            className={`p-2 ${callActive ? 'bg-gray-500' : 'bg-blue-500'} text-white rounded flex-1 flex items-center justify-center`}>
+                            <span className="mr-2">📹</span>Start Video Call
+                        </button>
+                        <button onClick={endVideoCall} disabled={!callActive} 
+                            className={`p-2 ${!callActive ? 'bg-gray-500' : 'bg-red-500'} text-white rounded flex-1 flex items-center justify-center`}>
+                            <span className="mr-2">🛑</span>End Call
+                        </button>
+                    </div>
+                    {callActive && (
+                        <div className="mt-4 space-y-4">
+                            <div>
+                                <p className="text-sm">Your Video:</p>
+                                <video ref={localVideoRef} autoPlay muted playsInline className="w-full rounded border" />
+                            </div>
+                            <div>
+                                <p className="text-sm">Doctor's Video (Simulated):</p>
+                                <video ref={remoteVideoRef} autoPlay playsInline className="w-full rounded border" />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            const Report = () => (
+                <div className="space-y-4">
+                    <h2 className="text-2xl flex items-center"><span className="mr-2">📋</span>{languages[lang].report}</h2>
+                    <div className="flex gap-4">
+                        <button onClick={() => speak('Downloading report')} className="p-2 bg-green-500 text-white rounded flex-1">📥 Download</button>
+                        <button onClick={() => speak('Reading report aloud')} className="p-2 bg-green-500 text-white rounded flex-1">🔊 Listen</button>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen bg-gray-100 p-4 flex flex-col items-center">
+                    <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6 space-y-6">
+                        {voiceError && <p className="text-red-500 text-sm">{voiceError}</p>}
+                        {!user ? <LoginScreen /> : (
+                            <>
+                                <HealthCheck />
+                                <Schemes />
+                                <DoctorConnect />
+                                <Report />
+                                <div className="flex gap-4">
+                                    <button onClick={() => speak(languages[lang].good)} className="flex-1 p-2 bg-gray-200 rounded">👍</button>
+                                    <button onClick={() => speak(languages[lang].bad)} className="flex-1 p-2 bg-gray-200 rounded">👎</button>
+                                    <button onClick={() => speak(languages[lang].help)} className="flex-1 p-2 bg-red-500 text-white rounded">📞 Help</button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<HealthKiosk />);
+    </script>
+</body>
+</html> 
+
